@@ -143,19 +143,18 @@
       <button class="preset" data-mode="2" aria-label="Branco sobre transparência"><span class="in"><span class="n">3</span><span class="led"></span></span></button>
       <button class="preset" data-mode="3" aria-label="Transparente sobre fogo"><span class="in"><span class="n">4</span><span class="led"></span></span></button>
     </div>
-    <div class="labels"><i>preto</i><i>contorno</i><i>png</i><i>gelo/fogo</i></div>
+    <div class="labels"><i>preto</i><i>contorno</i><i>png</i><i>fogo</i></div>
   </nav>
 
 <script type="module">
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 // ---------- geometria do logo (vetorizada do arquivo original) ----------
 const SHAPES = [[[699.7,-167.5],[747.1,-120.7],[794.5,-74.0],[794.5,0.5],[794.6,75.0],[747.8,121.2],[701.0,167.5],[497.6,167.5],[450.1,120.4],[402.5,73.3],[402.5,-75.0],[449.6,-121.3],[496.7,-167.5]],[[-543.0,-166.5],[-503.0,-126.5],[-501.8,-126.5],[-468.3,-162.5],[-411.5,-162.5],[-411.5,36.5],[-608.5,36.5],[-608.5,-46.8],[-564.0,-46.0],[-519.5,-45.3],[-519.5,-69.5],[-651.0,-69.3],[-680.5,-37.7],[-680.5,0.1],[-680.4,38.0],[-652.0,67.6],[-580.8,67.5],[-509.6,67.5],[-486.1,46.5],[-485.0,46.5],[-409.3,122.2],[-428.0,140.2],[-441.5,152.8],[-454.9,165.5],[-704.0,165.5],[-794.5,75.0],[-794.5,-75.0],[-703.0,-166.5]],[[-28.5,-162.5],[-28.5,-73.5],[-201.5,-73.5],[-201.5,-47.5],[-50.5,-47.5],[-50.5,49.5],[-201.5,49.5],[-201.5,73.5],[-30.5,73.5],[-30.5,162.5],[-315.5,162.5],[-315.5,-162.5]],[[346.5,-162.5],[346.5,-43.5],[184.5,-43.5],[184.5,162.5],[59.5,162.5],[59.5,-162.5]],[[553.0,-50.5],[532.5,-30.0],[532.5,30.0],[553.0,50.5],[643.7,50.5],[665.5,30.2],[665.5,-31.3],[644.7,-50.5]]];
-const DEPTH = 150;
+const DEPTH = 290;
 
 const toShape = pts => {
   const s = new THREE.Shape();
@@ -186,8 +185,6 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(28, 1, 10, 20000);
 scene.add(camera);
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.1));
 const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-1, 1.4, 2); scene.add(key);
@@ -220,83 +217,67 @@ const M = {
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .5, emissive: 0xffffff, emissiveIntensity: .5 }),
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .55, emissive: 0xffffff, emissiveIntensity: .12 }),
   ],
-  glass: (() => {
-    const m = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff, transmission: 1, thickness: 220, ior: 1.31,
-      roughness: .2, metalness: 0, envMap, envMapIntensity: 2.4,
-      specularIntensity: 1, clearcoat: 1, clearcoatRoughness: .04,
-      attenuationColor: new THREE.Color(0xd6eeff), attenuationDistance: 500,
-    });
-    return [m, m];
-  })(),
 };
 
-// ---------- fundo de fogo (shader procedural, dentro da cena p/ refração do vidro) ----------
+// ---------- fundo de fogo: canvas próprio em baixa resolução (leve) ----------
+const fireBox = document.getElementById('bg-fire');
+const fireCanvas = document.createElement('canvas');
+fireCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
+fireBox.appendChild(fireCanvas);
+const fireR = new THREE.WebGLRenderer({ canvas: fireCanvas, antialias: false, alpha: false, powerPreference: 'low-power' });
+fireR.setPixelRatio(0.4);
+fireR.outputColorSpace = THREE.SRGBColorSpace;
+const fireScene = new THREE.Scene(), fireCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const fireMat = new THREE.ShaderMaterial({
-  depthWrite: false, depthTest: false, transparent: true,
-  uniforms: {
-    uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uOpacity: { value: 0 },
-    uImg: { value: null }, uUseImg: { value: 0 }, uImgAspect: { value: 1 },
-  },
-  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.9999,1.); }`,
+  uniforms: { uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
   fragmentShader: `
-    precision highp float;
+    precision mediump float;
     varying vec2 vUv;
-    uniform float uTime, uOpacity, uUseImg, uImgAspect;
-    uniform vec2 uRes;
-    uniform sampler2D uImg;
+    uniform float uTime; uniform vec2 uRes;
     float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
     float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
       return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
-    float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<6;i++){ v+=a*n(p); p=p*2.03+vec2(1.7,9.2); a*=.5; } return v; }
+    float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<5;i++){ v+=a*n(p); p=p*2.03+vec2(1.7,9.2); a*=.5; } return v; }
     void main(){
-      vec3 col;
-      if(uUseImg > .5){
-        float sa = uRes.x/uRes.y; vec2 uv = vUv - .5;
-        if(sa > uImgAspect) uv.y *= uImgAspect/sa; else uv.x *= sa/uImgAspect;
-        col = texture2D(uImg, uv + .5).rgb;
-      } else {
-        vec2 uv = vUv; float asp = uRes.x/uRes.y;
-        vec2 p = vec2((uv.x-.5)*asp, uv.y);
-        float t = uTime*.9;
-        vec2 q = vec2(fbm(p*3. + vec2(0., -t*1.2)), fbm(p*3. + vec2(5.2, -t*1.4)));
-        float f = fbm(p*2.6 + q*1.6 + vec2(0., -t*1.8));
-        float base = 1.12 - uv.y*1.3;
-        float flame = clamp(f*1.55*base + base*.45 - .35, 0., 1.);
-        flame = pow(flame, 1.35);
-        col = vec3(1.25, .38, .05)*flame + vec3(1.,.8,.4)*pow(flame,3.)*.9;
-        col = mix(vec3(.05,.008,0.), col, smoothstep(0., .25, flame) + .1);
-        float ember = step(.997, h(floor(vec2(p.x*90., (p.y - t*.35)*90.)))) * smoothstep(.9,.2,uv.y);
-        col += vec3(1.,.5,.1)*ember*.8;
-      }
-      gl_FragColor = vec4(col, uOpacity);
+      vec2 uv = vUv; float asp = uRes.x/uRes.y;
+      vec2 p = vec2((uv.x-.5)*asp, uv.y);
+      float t = uTime*.9;
+      float q = fbm(p*3. + vec2(0., -t*1.2));
+      float f = fbm(p*2.6 + vec2(q*1.6, q) + vec2(0., -t*1.8));
+      float base = 1.06 - uv.y*1.32;
+      float flame = clamp(f*1.55*base + base*.45 - .35, 0., 1.);
+      flame = pow(flame, 1.35);
+      vec3 col = vec3(1.25, .38, .05)*flame + vec3(1.,.8,.4)*pow(flame,3.)*.9;
+      col = mix(vec3(.05,.008,0.), col, smoothstep(0., .25, flame) + .1);
+      float ember = step(.9985, h(floor(vec2(p.x*120., (p.y - t*.35)*120.)))) * smoothstep(.9,.2,uv.y);
+      col += vec3(1.,.5,.1)*ember*.8;
+      gl_FragColor = vec4(min(col, 1.), 1.);
       #include <colorspace_fragment>
     }`,
 });
-const fire = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fireMat);
-fire.frustumCulled = false;
-fire.renderOrder = -10;
-scene.add(fire);
-
-// se existir "fogo.jpg" na mesma pasta do index.html, usa a foto no lugar do fogo procedural
-new THREE.TextureLoader().load('fogo.jpg', tex => {
-  tex.colorSpace = THREE.SRGBColorSpace;
-  fireMat.uniforms.uImg.value = tex;
-  fireMat.uniforms.uImgAspect.value = tex.image.width / tex.image.height;
-  fireMat.uniforms.uUseImg.value = 1;
-}, undefined, () => {});
+fireScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fireMat));
+let firePhoto = false;
+// se existir "fogo.jpg" na mesma pasta do index.html, usa a foto no lugar do fogo animado
+const probe = new Image();
+probe.onload = () => {
+  firePhoto = true; fireCanvas.remove();
+  fireBox.style.background = '#120400 url(fogo.jpg) center/cover no-repeat';
+};
+probe.src = 'fogo.jpg';
 
 // ---------- modos ----------
 const MODES = [
-  { name: '01 · PRETO',        mat: 'black',   bg: 'bg-white',   lines: 0,   dark: false, fire: 0 },
-  { name: '02 · CONTORNO',     mat: 'outline', bg: 'bg-white',   lines: 1,   dark: false, fire: 0 },
-  { name: '03 · BRANCO · PNG', mat: 'white',   bg: 'bg-checker', lines: 0,   dark: false, fire: 0 },
-  { name: '04 · GELO · FOGO',    mat: 'glass', bg: 'bg-fire',    lines: .55, dark: true,  fire: 1 },
+  { name: '01 · PRETO',        mat: 'black',   bg: 'bg-white',   lines: 0, dark: false },
+  { name: '02 · CONTORNO',     mat: 'outline', bg: 'bg-white',   lines: 1, dark: false },
+  { name: '03 · BRANCO · PNG', mat: 'white',   bg: 'bg-checker', lines: 0, dark: false },
+  { name: '04 · FOGO',         mat: null,      bg: 'bg-fire',    lines: 1, dark: true  },
 ];
-let fireTarget = 0;
+let fireOn = false, fireOffAt = 0;
 function setMode(i) {
   const m = MODES[i];
-  mesh.material = M[m.mat];
+  mesh.visible = !!m.mat;            // modo fogo: só o contorno, miolo vazado
+  if (m.mat) mesh.material = M[m.mat];
   lines.visible = m.lines > 0;
   lineMat.opacity = m.lines;
   lineMat.color.set(m.dark ? 0xffffff : 0x0b0b0b);
@@ -305,7 +286,9 @@ function setMode(i) {
   document.body.classList.toggle('checker', m.bg === 'bg-checker');
   document.getElementById('display').textContent = m.name;
   document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.mode === i));
-  fireTarget = m.fire;
+  const wasOn = fireOn;
+  fireOn = m.bg === 'bg-fire';
+  if (wasOn && !fireOn) fireOffAt = performance.now();   // deixa animar durante o fade-out
   renderer.toneMapping = m.mat === 'outline' ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
   Object.values(M).flat().forEach(x => x.needsUpdate = true);
 }
@@ -316,10 +299,11 @@ setMode(0);
 // ---------- rotação por arrastar (mouse / dedo) com inércia ----------
 const REST = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.32, -0.42, 0.06));
 logo.quaternion.setFromEuler(new THREE.Euler(0.1, -Math.PI * 1.15, 0)); // entra girando
-let intro = true;
+let returning = true;           // começa voltando para a pose central (animação de entrada)
+let returnSpeed = 2.2;
 
 const vel = new THREE.Vector2();
-let dragging = false, last = null, lastT = 0, resetting = false;
+let dragging = false, last = null, lastT = 0, releasedAt = 0;
 const qx = new THREE.Quaternion(), qy = new THREE.Quaternion();
 const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0);
 const SPEED = 0.0085;
@@ -329,9 +313,18 @@ function spin(dx, dy) {
   qx.setFromAxisAngle(AX, dy * SPEED);
   logo.quaternion.premultiply(qy).premultiply(qx).normalize();
 }
+
+// legível = frente virada para a câmera e "em pé"
+const _f = new THREE.Vector3(), _u = new THREE.Vector3();
+function legible() {
+  _f.set(0, 0, 1).applyQuaternion(logo.quaternion);
+  _u.set(0, 1, 0).applyQuaternion(logo.quaternion);
+  return _f.z > 0.45 && _u.y > 0.6;
+}
+
 const hint = document.getElementById('hint');
 canvas.addEventListener('pointerdown', e => {
-  dragging = true; intro = false; resetting = false;
+  dragging = true; returning = false;
   last = { x: e.clientX, y: e.clientY }; lastT = performance.now();
   vel.set(0, 0);
   canvas.setPointerCapture(e.pointerId);
@@ -346,15 +339,20 @@ canvas.addEventListener('pointermove', e => {
   vel.set(dx, dy).multiplyScalar(16 / dt);
   last = { x: e.clientX, y: e.clientY }; lastT = now;
 });
-const end = () => { dragging = false; canvas.classList.remove('grabbing'); if (performance.now() - lastT > 80) vel.set(0, 0); };
+const end = () => {
+  if (!dragging) return;
+  dragging = false; releasedAt = performance.now();
+  canvas.classList.remove('grabbing');
+  if (releasedAt - lastT > 80) vel.set(0, 0);
+};
 canvas.addEventListener('pointerup', end);
 canvas.addEventListener('pointercancel', end);
 
-// toque duplo / duplo clique: volta à pose inicial
+// toque duplo / duplo clique: volta à pose inicial na hora
 let lastTap = 0;
-canvas.addEventListener('pointerup', e => {
+canvas.addEventListener('pointerup', () => {
   const t = performance.now();
-  if (t - lastTap < 300) { resetting = true; vel.set(0, 0); }
+  if (t - lastTap < 300) { returning = true; returnSpeed = 6; vel.set(0, 0); }
   lastTap = t;
 });
 
@@ -362,8 +360,9 @@ canvas.addEventListener('pointerup', e => {
 function fit() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
+  fireR.setSize(w, h, false);
   camera.aspect = w / h;
-  const logoW = 1700, logoH = 420;
+  const logoW = 1800, logoH = 520;
   const vFov = THREE.MathUtils.degToRad(camera.fov);
   const fill = w < 700 ? 0.92 : 0.62;
   const distW = (logoW / fill) / (2 * Math.tan(vFov / 2) * camera.aspect);
@@ -384,23 +383,28 @@ fit();
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
-  fireMat.uniforms.uTime.value += dt;
-  const fo = fireMat.uniforms.uOpacity;
-  fo.value += (fireTarget - fo.value) * Math.min(1, dt * 5);
-  fire.visible = fo.value > 0.002;
-  // opaco quando 100% visível, para entrar na refração do vidro
-  const opaque = fo.value > 0.995;
-  if (fireMat.transparent === opaque) { fireMat.transparent = !opaque; fireMat.needsUpdate = true; }
+  const now = performance.now();
 
-  if (intro) {
-    logo.quaternion.slerp(REST, Math.min(1, dt * 2.2));
-    if (logo.quaternion.angleTo(REST) < 0.002) intro = false;
-  } else if (resetting) {
-    logo.quaternion.slerp(REST, Math.min(1, dt * 6));
-    if (logo.quaternion.angleTo(REST) < 0.002) resetting = false;
-  } else if (!dragging && vel.lengthSq() > 0.0004) {
-    spin(vel.x, vel.y);
-    vel.multiplyScalar(Math.pow(0.93, dt * 60));
+  // fogo só é desenhado quando aparece (e durante o fade-out)
+  if (!firePhoto && (fireOn || now - fireOffAt < 700)) {
+    fireMat.uniforms.uTime.value += dt;
+    fireR.render(fireScene, fireCam);
+  }
+
+  if (!dragging) {
+    const coasting = vel.lengthSq() > 0.0004;
+    if (coasting && !returning) {
+      spin(vel.x, vel.y);
+      vel.multiplyScalar(Math.pow(0.93, dt * 60));
+    }
+    // ficou ilegível (de costas, de ponta-cabeça, de lado)? volta suave pro centro
+    if (!returning && vel.lengthSq() < 4 && now - releasedAt > 250 && !legible()) {
+      returning = true; returnSpeed = 2.4; vel.set(0, 0);
+    }
+    if (returning) {
+      logo.quaternion.slerp(REST, Math.min(1, dt * returnSpeed));
+      if (logo.quaternion.angleTo(REST) < 0.002) returning = false;
+    }
   }
   renderer.render(scene, camera);
 });
