@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GELO — proposta de logo</title>
+<style>
+  :root{
+    --plate:transparent;
+    --ink:#0b0b0b;
+    --dim:rgba(11,11,11,.45);
+    --led:#0b0b0b;
+  }
+  body.dark{ --ink:#f4efe8; --dim:rgba(244,239,232,.6); --led:#ffb347; --plate:rgba(14,4,0,.55); }
+  body.checker{ --plate:#fff; --dim:rgba(11,11,11,.55); }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#fff}
+  body{
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;-webkit-user-select:none;
+    transition:color .5s;
+  }
+
+  /* fundos */
+  .bg{position:fixed;inset:0;opacity:0;transition:opacity .6s ease}
+  .bg.on{opacity:1}
+  #bg-white{background:#fff}
+  #bg-checker{
+    background-color:#fff;
+    background-image:
+      linear-gradient(45deg,#cfcfcf 25%,transparent 25%),
+      linear-gradient(-45deg,#cfcfcf 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#cfcfcf 75%),
+      linear-gradient(-45deg,transparent 75%,#cfcfcf 75%);
+    background-size:24px 24px;
+    background-position:0 0,0 12px,12px -12px,-12px 0;
+  }
+  #bg-fire{background:#120400}
+
+  canvas#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;display:block}
+  canvas#c.grabbing{cursor:grabbing}
+
+  header{
+    position:fixed;top:0;left:0;right:0;
+    padding:max(18px,env(safe-area-inset-top)) 22px 0;
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    pointer-events:none;
+  }
+  header b{font-weight:700}
+  header span{color:var(--dim);transition:color .5s}
+
+  .hint{
+    position:fixed;left:0;right:0;
+    bottom:calc(158px + env(safe-area-inset-bottom));
+    text-align:center;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--dim);pointer-events:none;transition:opacity .8s,color .5s;
+  }
+  .hint.gone{opacity:0}
+
+  /* painel de presets — estilo CD player automotivo anos 2000 */
+  .deck{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(26px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    padding:14px 18px 10px;border-radius:12px;background:var(--plate);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    transition:background .5s;
+  }
+  header b,header span,.hint span{background:var(--plate);padding:3px 6px;border-radius:3px;transition:background .5s,color .5s}
+  .display{
+    font-size:10px;letter-spacing:.32em;text-transform:uppercase;
+    padding:5px 14px;border:1px solid var(--ink);border-radius:3px;
+    min-width:230px;text-align:center;transition:border-color .5s;
+    position:relative;
+  }
+  .display::before{
+    content:"MODE";position:absolute;left:8px;top:50%;transform:translateY(-50%);
+    font-size:7px;letter-spacing:.15em;color:var(--dim);
+  }
+  .presets{display:flex;gap:9px}
+  .preset{
+    appearance:none;background:transparent;color:var(--ink);
+    border:1.5px solid var(--ink);
+    width:68px;height:40px;
+    border-radius:16px 4px 16px 4px;
+    transform:skewX(-14deg);
+    cursor:pointer;position:relative;
+    font:inherit;
+    transition:transform .08s ease, background .2s, border-color .5s, color .5s;
+  }
+  .preset:active{transform:skewX(-14deg) translateY(1.5px) scale(.97)}
+  .preset .in{
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    transform:skewX(14deg);height:100%;
+  }
+  .preset .n{font-size:16px;font-weight:700;line-height:1}
+  .preset .led{
+    width:12px;height:3px;border:1px solid var(--ink);border-radius:1px;
+    transition:background .2s, box-shadow .2s, border-color .5s;
+  }
+  .preset.on .led{background:var(--led);border-color:var(--led);box-shadow:0 0 6px var(--led)}
+  body.dark .preset.on .led{box-shadow:0 0 8px 1px var(--led)}
+  .labels{display:flex;gap:9px}
+  .labels i{
+    width:68px;text-align:center;font-style:normal;
+    font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+    transition:color .5s;
+  }
+  .preset:focus-visible{outline:2px dashed var(--ink);outline-offset:4px}
+
+  @media (max-width:600px){ .hint{font-size:8.5px;letter-spacing:.12em;white-space:nowrap} }
+  @media (max-width:380px){
+    .preset,.labels i{width:60px}
+    .display{min-width:200px}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+  <div class="bg on" id="bg-white"></div>
+  <div class="bg" id="bg-checker"></div>
+  <div class="bg" id="bg-fire"></div>
+
+  <canvas id="c"></canvas>
+
+  <header><b>GELO</b><span>proposta de logo · para Amangelo</span></header>
+  <div class="hint" id="hint"><span>arraste para girar · toque duplo para centralizar</span></div>
+
+  <nav class="deck">
+    <div class="display" id="display">01 · PRETO</div>
+    <div class="presets" role="group" aria-label="Versões de cor">
+      <button class="preset on" data-mode="0" aria-label="Preto sobre branco"><span class="in"><span class="n">1</span><span class="led"></span></span></button>
+      <button class="preset" data-mode="1" aria-label="Branco com contorno"><span class="in"><span class="n">2</span><span class="led"></span></span></button>
+      <button class="preset" data-mode="2" aria-label="Branco sobre transparência"><span class="in"><span class="n">3</span><span class="led"></span></span></button>
+      <button class="preset" data-mode="3" aria-label="Transparente sobre fogo"><span class="in"><span class="n">4</span><span class="led"></span></span></button>
+    </div>
+    <div class="labels"><i>preto</i><i>contorno</i><i>png</i><i>gelo/fogo</i></div>
+  </nav>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+// ---------- geometria do logo (vetorizada do arquivo original) ----------
+const SHAPES = [[[699.7,-167.5],[747.1,-120.7],[794.5,-74.0],[794.5,0.5],[794.6,75.0],[747.8,121.2],[701.0,167.5],[497.6,167.5],[450.1,120.4],[402.5,73.3],[402.5,-75.0],[449.6,-121.3],[496.7,-167.5]],[[-543.0,-166.5],[-503.0,-126.5],[-501.8,-126.5],[-468.3,-162.5],[-411.5,-162.5],[-411.5,36.5],[-608.5,36.5],[-608.5,-46.8],[-564.0,-46.0],[-519.5,-45.3],[-519.5,-69.5],[-651.0,-69.3],[-680.5,-37.7],[-680.5,0.1],[-680.4,38.0],[-652.0,67.6],[-580.8,67.5],[-509.6,67.5],[-486.1,46.5],[-485.0,46.5],[-409.3,122.2],[-428.0,140.2],[-441.5,152.8],[-454.9,165.5],[-704.0,165.5],[-794.5,75.0],[-794.5,-75.0],[-703.0,-166.5]],[[-28.5,-162.5],[-28.5,-73.5],[-201.5,-73.5],[-201.5,-47.5],[-50.5,-47.5],[-50.5,49.5],[-201.5,49.5],[-201.5,73.5],[-30.5,73.5],[-30.5,162.5],[-315.5,162.5],[-315.5,-162.5]],[[346.5,-162.5],[346.5,-43.5],[184.5,-43.5],[184.5,162.5],[59.5,162.5],[59.5,-162.5]],[[553.0,-50.5],[532.5,-30.0],[532.5,30.0],[553.0,50.5],[643.7,50.5],[665.5,30.2],[665.5,-31.3],[644.7,-50.5]]];
+const DEPTH = 150;
+
+const toShape = pts => {
+  const s = new THREE.Shape();
+  pts.forEach(([x, y], i) => i ? s.lineTo(x, y) : s.moveTo(x, y));
+  s.closePath();
+  return s;
+};
+const [oOuter, G, E, L, oInner] = SHAPES;
+const shapes = [toShape(G), toShape(E), toShape(L)];
+const O = toShape(oOuter);
+O.holes.push(new THREE.Path(oInner.map(([x, y]) => new THREE.Vector2(x, y))));
+shapes.push(O);
+
+const geo = new THREE.ExtrudeGeometry(shapes, { depth: DEPTH, bevelEnabled: false, curveSegments: 1 });
+geo.translate(0, 0, -DEPTH / 2);
+geo.computeVertexNormals();
+
+// ---------- renderer / cena ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 10, 20000);
+scene.add(camera);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-1, 1.4, 2); scene.add(key);
+const rim = new THREE.DirectionalLight(0xffffff, 1.2); rim.position.set(2, -0.5, -1); scene.add(rim);
+
+const logo = new THREE.Group();
+scene.add(logo);
+
+const mesh = new THREE.Mesh(geo);
+logo.add(mesh);
+
+// arestas (contorno)
+const edges = new THREE.EdgesGeometry(geo, 25);
+const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edges);
+const lineMat = new LineMaterial({ color: 0x0b0b0b, linewidth: 2.4, transparent: true, opacity: 1, depthTest: true });
+const lines = new LineSegments2(lineGeo, lineMat);
+logo.add(lines);
+
+// ---------- materiais por versão ----------
+const M = {
+  black: [
+    new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .55, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: .6, metalness: 0 }),
+  ],
+  outline: [
+    new THREE.MeshBasicMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+  ],
+  white: [
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .5, emissive: 0xffffff, emissiveIntensity: .5 }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .55, emissive: 0xffffff, emissiveIntensity: .12 }),
+  ],
+  glass: (() => {
+    const m = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff, transmission: 1, thickness: 220, ior: 1.31,
+      roughness: .2, metalness: 0, envMap, envMapIntensity: 2.4,
+      specularIntensity: 1, clearcoat: 1, clearcoatRoughness: .04,
+      attenuationColor: new THREE.Color(0xd6eeff), attenuationDistance: 500,
+    });
+    return [m, m];
+  })(),
+};
+
+// ---------- fundo de fogo (shader procedural, dentro da cena p/ refração do vidro) ----------
+const fireMat = new THREE.ShaderMaterial({
+  depthWrite: false, depthTest: false, transparent: true,
+  uniforms: {
+    uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uOpacity: { value: 0 },
+    uImg: { value: null }, uUseImg: { value: 0 }, uImgAspect: { value: 1 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.9999,1.); }`,
+  fragmentShader: `
+    precision highp float;
+    varying vec2 vUv;
+    uniform float uTime, uOpacity, uUseImg, uImgAspect;
+    uniform vec2 uRes;
+    uniform sampler2D uImg;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+    float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+      return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+    float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<6;i++){ v+=a*n(p); p=p*2.03+vec2(1.7,9.2); a*=.5; } return v; }
+    void main(){
+      vec3 col;
+      if(uUseImg > .5){
+        float sa = uRes.x/uRes.y; vec2 uv = vUv - .5;
+        if(sa > uImgAspect) uv.y *= uImgAspect/sa; else uv.x *= sa/uImgAspect;
+        col = texture2D(uImg, uv + .5).rgb;
+      } else {
+        vec2 uv = vUv; float asp = uRes.x/uRes.y;
+        vec2 p = vec2((uv.x-.5)*asp, uv.y);
+        float t = uTime*.9;
+        vec2 q = vec2(fbm(p*3. + vec2(0., -t*1.2)), fbm(p*3. + vec2(5.2, -t*1.4)));
+        float f = fbm(p*2.6 + q*1.6 + vec2(0., -t*1.8));
+        float base = 1.12 - uv.y*1.3;
+        float flame = clamp(f*1.55*base + base*.45 - .35, 0., 1.);
+        flame = pow(flame, 1.35);
+        col = vec3(1.25, .38, .05)*flame + vec3(1.,.8,.4)*pow(flame,3.)*.9;
+        col = mix(vec3(.05,.008,0.), col, smoothstep(0., .25, flame) + .1);
+        float ember = step(.997, h(floor(vec2(p.x*90., (p.y - t*.35)*90.)))) * smoothstep(.9,.2,uv.y);
+        col += vec3(1.,.5,.1)*ember*.8;
+      }
+      gl_FragColor = vec4(col, uOpacity);
+      #include <colorspace_fragment>
+    }`,
+});
+const fire = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fireMat);
+fire.frustumCulled = false;
+fire.renderOrder = -10;
+scene.add(fire);
+
+// se existir "fogo.jpg" na mesma pasta do index.html, usa a foto no lugar do fogo procedural
+new THREE.TextureLoader().load('fogo.jpg', tex => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  fireMat.uniforms.uImg.value = tex;
+  fireMat.uniforms.uImgAspect.value = tex.image.width / tex.image.height;
+  fireMat.uniforms.uUseImg.value = 1;
+}, undefined, () => {});
+
+// ---------- modos ----------
+const MODES = [
+  { name: '01 · PRETO',        mat: 'black',   bg: 'bg-white',   lines: 0,   dark: false, fire: 0 },
+  { name: '02 · CONTORNO',     mat: 'outline', bg: 'bg-white',   lines: 1,   dark: false, fire: 0 },
+  { name: '03 · BRANCO · PNG', mat: 'white',   bg: 'bg-checker', lines: 0,   dark: false, fire: 0 },
+  { name: '04 · GELO · FOGO',    mat: 'glass', bg: 'bg-fire',    lines: .55, dark: true,  fire: 1 },
+];
+let fireTarget = 0;
+function setMode(i) {
+  const m = MODES[i];
+  mesh.material = M[m.mat];
+  lines.visible = m.lines > 0;
+  lineMat.opacity = m.lines;
+  lineMat.color.set(m.dark ? 0xffffff : 0x0b0b0b);
+  document.querySelectorAll('.bg').forEach(b => b.classList.toggle('on', b.id === m.bg));
+  document.body.classList.toggle('dark', m.dark);
+  document.body.classList.toggle('checker', m.bg === 'bg-checker');
+  document.getElementById('display').textContent = m.name;
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.mode === i));
+  fireTarget = m.fire;
+  renderer.toneMapping = m.mat === 'outline' ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  Object.values(M).flat().forEach(x => x.needsUpdate = true);
+}
+document.querySelectorAll('.preset').forEach(b => b.addEventListener('click', () => setMode(+b.dataset.mode)));
+addEventListener('keydown', e => { if ('1234'.includes(e.key)) setMode(+e.key - 1); });
+setMode(0);
+
+// ---------- rotação por arrastar (mouse / dedo) com inércia ----------
+const REST = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.32, -0.42, 0.06));
+logo.quaternion.setFromEuler(new THREE.Euler(0.1, -Math.PI * 1.15, 0)); // entra girando
+let intro = true;
+
+const vel = new THREE.Vector2();
+let dragging = false, last = null, lastT = 0, resetting = false;
+const qx = new THREE.Quaternion(), qy = new THREE.Quaternion();
+const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0);
+const SPEED = 0.0085;
+
+function spin(dx, dy) {
+  qy.setFromAxisAngle(AY, dx * SPEED);
+  qx.setFromAxisAngle(AX, dy * SPEED);
+  logo.quaternion.premultiply(qy).premultiply(qx).normalize();
+}
+const hint = document.getElementById('hint');
+canvas.addEventListener('pointerdown', e => {
+  dragging = true; intro = false; resetting = false;
+  last = { x: e.clientX, y: e.clientY }; lastT = performance.now();
+  vel.set(0, 0);
+  canvas.setPointerCapture(e.pointerId);
+  canvas.classList.add('grabbing');
+  hint.classList.add('gone');
+});
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - last.x, dy = e.clientY - last.y;
+  const now = performance.now(), dt = Math.max(1, now - lastT);
+  spin(dx, dy);
+  vel.set(dx, dy).multiplyScalar(16 / dt);
+  last = { x: e.clientX, y: e.clientY }; lastT = now;
+});
+const end = () => { dragging = false; canvas.classList.remove('grabbing'); if (performance.now() - lastT > 80) vel.set(0, 0); };
+canvas.addEventListener('pointerup', end);
+canvas.addEventListener('pointercancel', end);
+
+// toque duplo / duplo clique: volta à pose inicial
+let lastTap = 0;
+canvas.addEventListener('pointerup', e => {
+  const t = performance.now();
+  if (t - lastTap < 300) { resetting = true; vel.set(0, 0); }
+  lastTap = t;
+});
+
+// ---------- enquadramento ----------
+function fit() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  const logoW = 1700, logoH = 420;
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const fill = w < 700 ? 0.92 : 0.62;
+  const distW = (logoW / fill) / (2 * Math.tan(vFov / 2) * camera.aspect);
+  const distH = (logoH / 0.42) / (2 * Math.tan(vFov / 2));
+  const dist = Math.max(distW, distH);
+  camera.position.set(0, 0, dist);
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  // sobe um pouco o logo no mobile para não brigar com os botões
+  logo.position.y = w < 700 ? 60 : 30;
+  fireMat.uniforms.uRes.value.set(w, h);
+  lineMat.resolution.set(w, h);
+}
+addEventListener('resize', fit);
+fit();
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  fireMat.uniforms.uTime.value += dt;
+  const fo = fireMat.uniforms.uOpacity;
+  fo.value += (fireTarget - fo.value) * Math.min(1, dt * 5);
+  fire.visible = fo.value > 0.002;
+  // opaco quando 100% visível, para entrar na refração do vidro
+  const opaque = fo.value > 0.995;
+  if (fireMat.transparent === opaque) { fireMat.transparent = !opaque; fireMat.needsUpdate = true; }
+
+  if (intro) {
+    logo.quaternion.slerp(REST, Math.min(1, dt * 2.2));
+    if (logo.quaternion.angleTo(REST) < 0.002) intro = false;
+  } else if (resetting) {
+    logo.quaternion.slerp(REST, Math.min(1, dt * 6));
+    if (logo.quaternion.angleTo(REST) < 0.002) resetting = false;
+  } else if (!dragging && vel.lengthSq() > 0.0004) {
+    spin(vel.x, vel.y);
+    vel.multiplyScalar(Math.pow(0.93, dt * 60));
+  }
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
